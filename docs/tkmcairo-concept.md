@@ -1,4 +1,4 @@
-# tkmcairo — Konzept und Architektur-Vision
+# tkmcairo — Konzept
 
 Stand: 2026-04-27
 
@@ -18,25 +18,6 @@ ohne Cairo-Details zu kennen — nur die Bausteine verwenden.
 
 ---
 
-## Vergleich: Plotchart vs tkmcairo
-
-| Merkmal | tklib Plotchart | tkmcairo::plot |
-|---------|----------------|----------------|
-| Rendering | Tk-Canvas | Cairo (Antialiasing) |
-| PDF-Export | nein (Umweg) | nativ, Vektorqualität |
-| SVG-Export | nein | nativ |
-| Gradients/Alpha | nein | ja |
-| Erweiterbarkeit | schwer (globale Arrays) | Bausteine |
-| Chart-Typen | 30+ | 4 (0.1), wächst |
-| Zeitachsen | ja | geplant 0.2 |
-| Reife | sehr hoch | 0.1 |
-
-**Plotchart und tkmcairo schließen sich nicht aus.**
-Wer Plotchart kennt kann tkmcairo-Algorithmen (niceTicks, determineScale)
-aus plotaxis.tcl übernehmen — die Lizenz (Tcl-Lizenz, Arjen Markus)
-erlaubt das mit Attribution.
-
----
 
 ## Architektur-Übersicht
 
@@ -234,7 +215,6 @@ tkmcairo::surface          Core Widget (fertig)
 |---------|-------|------------|
 | tklib Plotchart | 30+ Chart-Typen, Canvas | Algorithmen nutzbar (Tcl-Lizenz) |
 | tkpath | Cairo-Canvas-Extension | Braucht Display, anderes Ziel |
-| TkMoin | Wayland-natives GUI | Widgets-Code portierbar |
 | tclmcairo | Cairo-C-Binding | Basis von tkmcairo |
 | BLT | Chart-Widgets | Kein Export, kein Antialiasing |
 
