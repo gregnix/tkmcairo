@@ -1,67 +1,67 @@
 # tkmcairo::scene 0.1
 #
-# Retained-mode scene graph for tkmcairo.
-# Manages a list of items with dirty flags.
-# Renders only when something changed.
+# Retained-Mode Szenengraph für tkmcairo.
+# Verwaltet eine Liste von Items mit Dirty-Flags.
+# Rendert nur bei Änderungen.
 #
 # API:
 #   set s [tkmcairo::scene new $surface ?options?]
 #
 #   $s add type x1 y1 x2 y2 ?opts?  -> id
-#     Types: rect oval line text image path circle
-#     Options:
-#       -fill    {r g b ?a?}    fill colour
-#       -stroke  {r g b ?a?}    outline colour  (aliases: -outline -color)
-#       -width   n              line width
-#       -radius  n              corner radius (rect)
-#       -text    string         text content
-#       -font    fontspec       font
+#     Typen: rect oval line text image path circle
+#     Optionen:
+#       -fill    {r g b ?a?}    Füllfarbe
+#       -stroke  {r g b ?a?}    Rahmenfarbe  (alias: -outline -color)
+#       -width   n              Linienbreite
+#       -radius  n              Eckenradius (rect)
+#       -text    string         Text-Inhalt
+#       -font    fontspec       Font
 #       -anchor  center|w|e|n|s|nw|ne|sw|se
-#       -dash    list           dash pattern
-#       -alpha   0..1           overall opacity
-#       -visible 0|1            visibility
-#       -tags    taglist        tags for group operations
+#       -dash    list           Strichmuster
+#       -alpha   0..1           Gesamt-Transparenz
+#       -visible 0|1            Sichtbarkeit
+#       -tags    taglist        Tags für Gruppenoperationen
 #
-#   $s update id ?opts?          change properties -> dirty
-#   $s delete id                 delete item
-#   $s move   id dx dy           shift
-#   $s moveto id x1 y1           absolute position
-#   $s coords id ?x1 y1 x2 y2?   read / set coordinates
+#   $s update id ?opts?          Eigenschaften ändern → dirty
+#   $s delete id                 Item löschen
+#   $s move   id dx dy           Verschieben
+#   $s moveto id x1 y1           Absolute Position
+#   $s coords id ?x1 y1 x2 y2?  Koordinaten lesen/setzen
 #
-#   $s items ?-tag t?            list of all ids (optionally by tag)
-#   $s type  id                  item type
-#   $s cget  id option           read an option
+#   $s items ?-tag t?            Liste aller IDs (optional nach Tag)
+#   $s type  id                  Typ des Items
+#   $s cget  id option           Option abfragen
 #
-#   $s hittest x y               topmost item at x/y -> id or ""
-#   $s bbox   id                 bounding box {x1 y1 x2 y2}
+#   $s hittest x y               Oberstes Item unter x/y → id oder ""
+#   $s bbox   id                 Bounding-Box {x1 y1 x2 y2}
 #
-#   $s raise  id                 to top of Z order
-#   $s lower  id                 to bottom of Z order
+#   $s raise  id                 An Z-Order-Spitze
+#   $s lower  id                 An Z-Order-Boden
 #
-#   $s bind  id event script     event binding (button motion enter leave)
+#   $s bind  id event script     Event-Binding (button motion enter leave)
 #   $s unbind id event
 #
-#   $s render                    redraw (only if dirty)
-#   $s forcerender               always redraw
-#   $s background r g b ?a?      background colour
+#   $s render                    Neu zeichnen (nur wenn dirty)
+#   $s forcerender               Immer neu zeichnen
+#   $s background r g b ?a?      Hintergrundfarbe
 #
-#   $s tag add    tag id...      set tags
+#   $s tag add    tag id...      Tags setzen
 #   $s tag remove tag id...
-#   $s tag items  tag            items carrying a tag
+#   $s tag items  tag            Items mit Tag
 #
 #   $s destroy
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::scene 0.1
+package provide tkmcairo::scene 0.1.1
 
 package require tkmcairo::surface
 
 namespace eval ::tkmcairo::scene {}
 
 # ============================================================
-# Constructor
+# Konstruktor
 # ============================================================
 proc ::tkmcairo::scene::new {surface args} {
     array set opts {
@@ -74,7 +74,7 @@ proc ::tkmcairo::scene::new {surface args} {
     set id "::tkmcairo::scene::SC[incr _count]"
 
     namespace eval $id {
-        variable items    {}    ;# ordered id list (Z order)
+        variable items    {}    ;# geordnete ID-Liste (Z-Order)
         variable data          ;# array: id -> dict
         variable nextid   0
         variable dirty    1
@@ -88,12 +88,12 @@ proc ::tkmcairo::scene::new {surface args} {
     set ${id}::surface $surface
     set ${id}::bg      $opts(-background)
 
-    # Drawcommand bridge — surface sets $ctx $w $h as globals
+    # Drawcommand bridge — surface setzt $ctx $w $h als globale Vars
     set body "::tkmcairo::scene::_render [list $id] \$ctx \$w \$h"
     ::tkmcairo::surface::_configure $surface \
         -drawcommand $body
 
-    # Event bindings on the surface
+    # Bindings für Events auf der surface
     set lbl ${surface}.lbl
     bind $lbl <ButtonPress-1>   [list ::tkmcairo::scene::_evButton $id %x %y 1]
     bind $lbl <ButtonRelease-1> [list ::tkmcairo::scene::_evButton $id %x %y 0]
@@ -103,9 +103,21 @@ proc ::tkmcairo::scene::new {surface args} {
     set body "::tkmcairo::scene::_cmd [list $id] \$subcmd {*}\$args"
     proc $id {subcmd args} $body
 
-    bind $surface <Destroy> [list namespace delete $id]
-
+    # Bind cleanup to the surface widget's <Destroy>. The %W filter is
+    # essential — without it the binding fires for every child widget
+    # destroyed inside the surface (canvas items, sub-frames etc.),
+    # which double-deletes the namespace and triggers errors. The 'catch'
+    # is a belt-and-braces guard for the rare case where another path
+    # already deleted the namespace (explicit 'destroy' subcommand).
+    bind $surface <Destroy> [list ::tkmcairo::scene::_evDestroy $id %W $surface]
     return $id
+}
+
+# Cleanup handler — only acts when the surface widget itself is destroyed,
+# not for children. Idempotent: silently no-ops if already cleaned.
+proc ::tkmcairo::scene::_evDestroy {id evwin surface} {
+    if {$evwin ne $surface} return
+    catch {namespace delete $id}
 }
 
 # ============================================================
@@ -353,7 +365,7 @@ proc ::tkmcairo::scene::_renderItem {ctx item} {
 # Hit-Testing (einfach: bounding box)
 # ============================================================
 proc ::tkmcairo::scene::_hittest {id px py} {
-    # Iterate Z-order from top to bottom (topmost first)
+    # Rückwärts durch Z-Order (oberstes zuerst)
     foreach iid [lreverse [set ${id}::items]] {
         if {![info exists ${id}::data($iid)]} continue
         set item [set ${id}::data($iid)]

@@ -1,30 +1,31 @@
 # tkmcairo::viewport 0.1
 #
-# Scrollable / zoomable Cairo widget.
-# Built on tkmcairo::surface and scrollutil::scrollarea.
+# Scrollbares/zoombares Cairo-Widget.
+# Baut auf tkmcairo::surface und scrollutil::scrollarea auf.
 #
 # API:
 #   tkmcairo::viewport pathName ?options?
 #
-#   Options (in addition to the surface options):
-#     -worldwidth  n    world width in pixels (default 2000)
-#     -worldheight n    world height in pixels (default 2000)
-#     -minzoom     f    minimum zoom factor (default 0.1)
-#     -maxzoom     f    maximum zoom factor (default 10.0)
-#     -drawcommand script  same as surface: $ctx $w $h
-#     -scrollbars  0|1  show scrollbars (default 0)
-#                        No scrollutil required — uses native ttk::scrollbar
+#   Options (zusätzlich zu surface-Optionen):
+#     -worldwidth  n    Welt-Breite in Pixeln (default 2000)
+#     -worldheight n    Welt-Höhe in Pixeln (default 2000)
+#     -minzoom     f    Minimaler Zoom-Faktor (default 0.1)
+#     -maxzoom     f    Maximaler Zoom-Faktor (default 10.0)
+#     -drawcommand script  wie bei surface: $ctx $w $h
+#     -scrollbars  0|1  Scrollbalken anzeigen (default 0)
+#                        Kein scrollutil nötig — native ttk::scrollbar
 #
-#   Widget commands:
-#     $vp zoom factor ?cx cy?  zoom around screen centre, or around cx/cy
-#     $vp zoomfit               zoom to fit the whole world
-#     $vp zoom1                 zoom to 1:1
-#     $vp pan dx dy             shift in pixels
-#     $vp zoomlevel             current zoom factor
-#     $vp worldToScreen x y     world coords -> pixel
-#     $vp screenToWorld px py   pixel -> world coords
+#   Widget-Commands:
+#     $vp zoom factor ?cx cy?  Zoom um Bildschirm-Mittelpunkt oder cx/cy
+#     $vp zoomfit               Zoom auf ganzes Weltkoordinaten-System
+#     $vp zoom1                 Zoom auf 1:1
+#     $vp pan dx dy             Verschiebung in Pixel
+#     $vp zoomlevel             aktueller Zoom-Faktor
+#     $vp worldToScreen x y     Weltkoord → Pixel
+#     $vp screenToWorld px py   Pixel → Weltkoord
 #     $vp redraw
-#     $vp export filename
+#     $vp export filename                     save to file (format from extension)
+#     $vp export -chan $ch -format fmt        stream to channel (PNG/PDF/SVG/PS/EPS)
 #     $vp configure ...
 #     $vp cget option
 #
@@ -33,7 +34,7 @@
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::viewport 0.1
+package provide tkmcairo::viewport 0.1.1
 
 package require Tk
 package require tkmcairo::surface
@@ -57,7 +58,7 @@ proc ::tkmcairo::viewport {w args} {
     }
     foreach {k v} $args { set opts($k) $v }
 
-    # Outer frame
+    # Äußerer Frame
     ttk::frame $w
     rename $w ::tkmcairo::viewport::_frame_[string map {. _ : _} $w]
     interp alias {} $w {} ::tkmcairo::viewport::_cmd $w
@@ -111,7 +112,7 @@ proc ::tkmcairo::viewport {w args} {
     bind $surflbl <ButtonPress-2>   [list ::tkmcairo::viewport::_panStart $w %x %y]
     bind $surflbl <B2-Motion>       [list ::tkmcairo::viewport::_panMove  $w %x %y]
     bind $surflbl <ButtonRelease-2> [list set ::tkmcairo::viewport::S_${w}::dragging 0]
-    # Left mouse button also for pan (optional)
+    # Linke Maustaste auch für Pan (optional)
     bind $surflbl <ButtonPress-1>   [list ::tkmcairo::viewport::_panStart $w %x %y]
     bind $surflbl <B1-Motion>       [list ::tkmcairo::viewport::_panMove  $w %x %y]
     bind $surflbl <ButtonRelease-1> [list set ::tkmcairo::viewport::S_${w}::dragging 0]
@@ -282,7 +283,7 @@ proc ::tkmcairo::viewport::_wheel {w delta x y} {
 }
 
 # ============================================================
-# Scrollbar support
+# Scrollbar-Unterstützung
 # ============================================================
 proc ::tkmcairo::viewport::_updateScrollbars {w} {
     set ns ::tkmcairo::viewport::S_${w}

@@ -18,7 +18,7 @@
 #     $p xaxis ?options?   configure X axis
 #     $p yaxis  ?options?  configure Y axis (links)
 #     $p y2axis ?options?  configure zweite Y-Achse (rechts)
-#       Additional option for series: -yaxis y1|y2
+#       Zusätzliche Option für series: -yaxis y1|y2
 #       Axis options:
 #         -label string    axis label
 #         -min  number     minimum value (auto if omitted)
@@ -57,13 +57,14 @@
 #
 #   Rendering:
 #     $p redraw
-#     $p export filename   PNG/PDF/SVG/PS/EPS
+#     $p export filename                     save to file (format from extension)
+#     $p export -chan $ch -format fmt        stream to channel (PNG/PDF/SVG/PS/EPS)
 #     $p destroy
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::plot 0.1
+package provide tkmcairo::plot 0.1.1
 
 package require Tk
 package require tkmcairo::surface
@@ -321,7 +322,7 @@ proc ::tkmcairo::plot::_draw {w ctx pw ph} {
                 -alpha 1.0 -dash {} -marker none -markersize 5
             }
             array set so [lrange $s 2 end]
-            # Choose Y axis
+            # Y-Achse wählen
             set useY2 [expr {$hasY2 && [array exists so] && [info exists so(-yaxis)] && $so(-yaxis) eq "y2"}]
             set _ymin   [expr {$useY2 ? $y2min   : $ymin}]
             set _ymax   [expr {$useY2 ? $y2max   : $ymax}]
@@ -731,7 +732,7 @@ proc ::tkmcairo::plot::_onClick {w mx my} {
 }
 
 # ============================================================
-# Tooltip — hover over a data point
+# Tooltip — Hover über Datenpunkt
 # ============================================================
 proc ::tkmcairo::plot::_onMotion {w mx my} {
     set ns ::tkmcairo::plot::S_${w}
@@ -777,7 +778,7 @@ proc ::tkmcairo::plot::_onMotion {w mx my} {
     set wx [expr {($mx - $px0) / $xscale + $xmin}]
     set wy [expr {($py1 - $my) / $yscale + $ymin}]
 
-    # Find the nearest data point (any line/area/scatter series)
+    # Nächsten Datenpunkt suchen (alle line/area/scatter)
     set best_d  1e9
     set best_txt ""
     set threshold [expr {15.0 / $xscale}]   ;# 15 Pixel Toleranz
@@ -878,13 +879,13 @@ proc ::tkmcairo::plot::_drawLegend {ctx series pw ph padL padT padR padB font {h
 
 
 # ============================================================
-# Time ticks for the time axis
+# Zeit-Ticks für Zeitachse
 # ============================================================
 proc ::tkmcairo::plot::_niceTimeTicks {tmin tmax n} {
     set span [expr {$tmax - $tmin}]
     if {$span <= 0} { return [list $tmin] }
 
-    # Nice time intervals in seconds
+    # Schöne Zeitintervalle in Sekunden
     set intervals {
         60       1min
         300      5min
@@ -922,7 +923,7 @@ proc ::tkmcairo::plot::_niceTimeTicks {tmin tmax n} {
 }
 
 proc ::tkmcairo::plot::_timeLabel {epoch fmt} {
-    # fmt may contain \n for two-line labels
+    # fmt kann \n enthalten für zweizeilige Labels
     # Wir splitten an \n und zeichnen zwei Zeilen
     clock format [expr {int($epoch)}] -format $fmt
 }
@@ -982,7 +983,7 @@ proc ::tkmcairo::plot::_dataRange {series} {
         foreach {xv yv} $so(-data) {
             if {$xmin eq "" || $xv < $xmin} { set xmin $xv }
             if {$xmax eq "" || $xv > $xmax} { set xmax $xv }
-            # Y range only for Y1 series
+            # Y-Range nur für Y1-Serien
             if {!$isY2} {
                 if {$ymin eq "" || $yv < $ymin} { set ymin $yv }
                 if {$ymax eq "" || $yv > $ymax} { set ymax $yv }

@@ -1,30 +1,30 @@
 # tkmcairo::axis 0.1
 #
-# Draw axes with tclmcairo. Uses tkmcairo::coords for the transform.
+# Achsen zeichnen mit tclmcairo. Nutzt tkmcairo::coords für Transformation.
 #
 # API:
 #   tkmcairo::axis::drawX $ctx $tr ?options?
 #   tkmcairo::axis::drawY $ctx $tr ?options?
-#   tkmcairo::axis::drawY2 $ctx $tr ?options?  (right-hand axis)
+#   tkmcairo::axis::drawY2 $ctx $tr ?options?  (rechte Achse)
 #
-#   Options:
-#     -label    string      axis label
-#     -ticks    n           number of ticks (default 5)
-#     -format   string      tick format (default "%.4g")
-#     -grid     0|1         grid lines (default 0)
-#     -gridcolor {r g b}    grid colour (default {0.88 0.88 0.88})
-#     -color    {r g b}     axis / tick colour (default {0.3 0.3 0.3})
-#     -font     fontspec    tick font (default "Sans 10")
-#     -labelfont fontspec   label font (default "Sans 11 bold")
-#     -ticklen  n           tick length in pixels (default 5)
-#     -width    n           line width (default 1.2)
+#   Optionen:
+#     -label    string      Achsen-Beschriftung
+#     -ticks    n           Anzahl Ticks (default 5)
+#     -format   string      Tick-Format (default "%.4g")
+#     -grid     0|1         Gitternetz (default 0)
+#     -gridcolor {r g b}    Gitterfarbe (default {0.88 0.88 0.88})
+#     -color    {r g b}     Achsen-/Tick-Farbe (default {0.3 0.3 0.3})
+#     -font     fontspec    Tick-Font (default "Sans 10")
+#     -labelfont fontspec   Label-Font (default "Sans 11 bold")
+#     -ticklen  n           Tick-Länge in Pixel (default 5)
+#     -width    n           Linienbreite (default 1.2)
 #
-#   tkmcairo::axis::niceTicks min max n -> list of tick values
+#   tkmcairo::axis::niceTicks min max n -> Tick-Werte
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::axis 0.1
+package provide tkmcairo::axis 0.1.1
 
 package require tkmcairo::coords
 
@@ -225,11 +225,11 @@ proc ::tkmcairo::axis::drawTimeX {ctx tr args} {
 }
 
 # ============================================================
-# Helper functions
+# Hilfsfunktionen
 # ============================================================
 
-# Nice round tick values — adapted from plotchart/plotaxis.tcl
-# (Arjen Markus, Tcl license)
+# Schöne runde Tick-Werte — aus plotchart/plotaxis.tcl adaptiert
+# (Arjen Markus, Tcl-Lizenz)
 proc ::tkmcairo::axis::niceTicks {mn mx n} {
     if {$mx == $mn || $n <= 0} { return [list $mn] }
     set range  [expr {abs($mx - $mn)}]
@@ -251,7 +251,7 @@ proc ::tkmcairo::axis::niceTicks {mn mx n} {
     return $ticks
 }
 
-# Time-axis ticks (epoch → list of {value label} pairs)
+# Zeitachsen-Ticks (Epoch → Label-Paare)
 proc ::tkmcairo::axis::_timeTicks {tmin tmax mode} {
     set result {}
     set secday 86400
@@ -259,7 +259,7 @@ proc ::tkmcairo::axis::_timeTicks {tmin tmax mode} {
 
     switch $mode {
         monthly {
-            # First of every month
+            # Jeden Monatsersten
             set t $tmin
             while {$t <= $tmax} {
                 set lbl [clock format [expr {int($t)}] -format "%b %y"]
@@ -284,7 +284,7 @@ proc ::tkmcairo::axis::_timeTicks {tmin tmax mode} {
             }
         }
         default {
-            # Numeric fallback
+            # Numerisch als Fallback
             foreach v [niceTicks $tmin $tmax 5] {
                 lappend result $v [format "%.0f" $v]
             }
@@ -293,7 +293,7 @@ proc ::tkmcairo::axis::_timeTicks {tmin tmax mode} {
     return $result
 }
 
-# Date string → epoch (helper for users)
+# Datums-String → Epoch (Hilfsfunktion für Anwender)
 proc ::tkmcairo::axis::timeToNum {datestr} {
     clock scan $datestr
 }

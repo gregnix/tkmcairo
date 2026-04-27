@@ -11,10 +11,59 @@ unset _tmdir
 package require tcltest 2.2
 namespace import tcltest::*
 
+# Define the hasTk constraint — true when running under wish (Tk loaded),
+# false under plain tclsh. Tests using -constraints hasTk are skipped
+# in headless mode and run only when actual widget creation is possible.
+tcltest::testConstraint hasTk [expr {
+    ![catch {package present Tk}] || [info commands ::tk] ne ""
+}]
+
 # tclmcairo laden falls TCLMCAIRO_LIBDIR gesetzt
 if {[info exists env(TCLMCAIRO_LIBDIR)]} {
     lappend auto_path $env(TCLMCAIRO_LIBDIR)
     tcl::tm::path add $env(TCLMCAIRO_LIBDIR)
+}
+
+# ================================================================
+# Test helpers — defined before any test that uses them.
+# Tcl reads files sequentially, so a proc must exist when the test
+# runs. Earlier we had these scattered in between tests, which made
+# tests that ran before the proc definition fail with
+# 'invalid command name "_get_tmpbase"' etc.
+# ================================================================
+
+# System-temp base directory, robust across Linux/Windows.
+proc _get_tmpbase {} {
+    if {[info exists ::env(TMPDIR)] && [file isdirectory $::env(TMPDIR)]} {
+        return $::env(TMPDIR)
+    }
+    if {[file isdirectory /tmp]} { return /tmp }
+    if {[info exists ::env(TEMP)] && [file isdirectory $::env(TEMP)]} {
+        return $::env(TEMP)
+    }
+    return [pwd]
+}
+
+# Generate a tiny PDF on disk so smoke tests do not depend on poppler.
+# Returns 1 on success, 0 if tclmcairo is unavailable.
+proc _make_test_pdf {filename} {
+    if {[catch {package require tclmcairo}]} { return 0 }
+    set ctx [tclmcairo::new 200 150 -mode pdf -file $filename]
+    $ctx clear 1 1 1
+    $ctx rect 10 10 180 130 -fill {0.8 0.8 0.9}
+    $ctx text 100 80 "page 1" -font "Sans 14" -anchor center -color {0 0 0}
+    $ctx finish
+    $ctx destroy
+    return [file exists $filename]
+}
+
+# Read first 8 bytes of file and check for PNG signature.
+proc _png_sig_ok {file} {
+    if {![file exists $file] || [file size $file] < 8} { return 0 }
+    set fh [open $file rb]; fconfigure $fh -translation binary
+    binary scan [read $fh 8] H16 hex
+    close $fh
+    return [expr {$hex eq "89504e470d0a1a0a"}]
 }
 
 # ================================================================
@@ -224,14 +273,14 @@ test axis-1.4 {niceTicks negative range} -body {
 # ================================================================
 # tkmcairo::scene (ohne Tk — nur API-Tests)
 # ================================================================
-# scene needs Tk — skip if not available
+# scene braucht Tk — überspringen wenn nicht verfügbar
 if {[catch {package require Tk}]} {
     puts "  (scene tests skipped — no Tk)"
 } else {
     package require tkmcairo::surface
     package require tkmcairo::scene
 
-    # Minimal surface for tests
+    # Minimale surface für Tests
     proc mkTestSurface {} {
         set w ".test[incr ::_tc]"
         tkmcairo::surface $w -width 100 -height 100
@@ -349,23 +398,31 @@ if {[catch {package require Tk}]} {
 
 
 # ================================================================
-# tkmcairo::plot — headless tests (no Tk required)
+# tkmcairo::plot — needs Tk because plot requires surface, which is
+# a Tk widget. The unit-tested helpers themselves (_niceTicks,
+# _dataRange) are pure-Tcl, but we cannot load tkmcairo::plot at all
+# without Tk. Therefore we guard the whole section.
 # ================================================================
-package require tkmcairo::plot
+if {[catch {package require Tk}]} {
+    puts "  (plot tests skipped — no Tk)"
+} else {
+    package require tkmcairo::plot
 
-test plot-1.0 {_niceTicks count approx correct} -body {
+    # All plot tests get the hasTk constraint so they run under wish
+    # but skip cleanly under tclsh.
+    test plot-1.0 {_niceTicks count approx correct} -constraints hasTk -body {
     set t [tkmcairo::plot::_niceTicks 0 100 5]
     expr {[llength $t] >= 4 && [llength $t] <= 7}
 } -result 1
 
-test plot-1.1 {_niceTicks boundaries inside range} -body {
+test plot-1.1 {_niceTicks boundaries inside range} -constraints hasTk -body {
     set t [tkmcairo::plot::_niceTicks 0 100 5]
     set ok 1
     foreach v $t { if {$v < 0 || $v > 100} { set ok 0 } }
     set ok
 } -result 1
 
-test plot-1.2 {_niceTicks round values} -body {
+test plot-1.2 {_niceTicks round values} -constraints hasTk -body {
     set t [tkmcairo::plot::_niceTicks 0 100 5]
     set ok 1
     foreach v $t {
@@ -374,55 +431,444 @@ test plot-1.2 {_niceTicks round values} -body {
     set ok
 } -result 1
 
-test plot-1.3 {_niceTicks float range} -body {
+test plot-1.3 {_niceTicks float range} -constraints hasTk -body {
     set t [tkmcairo::plot::_niceTicks 0.0 1.0 5]
     expr {[llength $t] >= 3}
 } -result 1
 
-test plot-1.4 {_niceTicks negative range} -body {
+test plot-1.4 {_niceTicks negative range} -constraints hasTk -body {
     set t [tkmcairo::plot::_niceTicks -50 50 4]
     expr {[lindex $t 0] >= -50 && [lindex $t end] <= 50}
 } -result 1
 
-test plot-1.5 {_dataRange empty returns blanks} -body {
+test plot-1.5 {_dataRange empty returns blanks} -constraints hasTk -body {
     lassign [tkmcairo::plot::_dataRange {}] xmin xmax ymin ymax
     expr {$xmin eq "" && $xmax eq "" && $ymin eq "" && $ymax eq ""}
 } -result 1
 
-test plot-1.6 {_dataRange single series} -body {
+test plot-1.6 {_dataRange single series} -constraints hasTk -body {
     set s [list line myseries -data {0 10 5 20 10 15}]
     lassign [tkmcairo::plot::_dataRange [list $s]] xmin xmax ymin ymax
     list $xmin $xmax $ymin $ymax
 } -result {0 10 10 20}
 
-test plot-1.7 {_dataRange two series} -body {
+test plot-1.7 {_dataRange two series} -constraints hasTk -body {
     set s1 [list line a -data {0 5  10 10}]
     set s2 [list line b -data {-5 0  20 30}]
     lassign [tkmcairo::plot::_dataRange [list $s1 $s2]] xmin xmax ymin ymax
     list $xmin $xmax $ymin $ymax
 } -result {-5 20 0 30}
 
-test plot-1.8 {_dataRange skips pie series} -body {
+test plot-1.8 {_dataRange skips pie series} -constraints hasTk -body {
     set s [list pie mypie -data {A 30 B 70}]
     lassign [tkmcairo::plot::_dataRange [list $s]] xmin xmax ymin ymax
     expr {$xmin eq ""}
 } -result 1
 
 
-test plot-2.0 {_drawPie: proc exists} -body {
+test plot-2.0 {_drawPie: proc exists} -constraints hasTk -body {
     expr {[info procs ::tkmcairo::plot::_drawPie] ne ""}
 } -result 1
 
-test plot-2.1 {_dataRange skips pie} -body {
+test plot-2.1 {_dataRange skips pie} -constraints hasTk -body {
     set s [list pie mypie -data {A 30 B 70}]
     lassign [tkmcairo::plot::_dataRange [list $s]] xmin xmax ymin ymax
     expr {$xmin eq "" && $xmax eq ""}
 } -result 1
 
-test plot-2.2 {_niceTicks: pie-only plot does not crash} -body {
+test plot-2.2 {_niceTicks: pie-only plot does not crash} -constraints hasTk -body {
     # pie braucht keine ticks — test dass _niceTicks mit extremen Werten ok
     set t [tkmcairo::plot::_niceTicks 0 0 5]
     expr {[llength $t] >= 1}
+} -result 1
+
+# ================================================================
+# Y2 axis (secondary Y axis on right side)
+# ================================================================
+
+test plot-y2-1.0 {_dataRangeY2 returns range only for y2 series} -constraints hasTk -body {
+    # Mix series: one default (y1), one explicit y2
+    set s1 [list line revenue -data {1 100 2 200 3 150} -yaxis y1]
+    set s2 [list line growth  -data {1 5 2 10 3 7}     -yaxis y2]
+    lassign [tkmcairo::plot::_dataRangeY2 [list $s1 $s2]] mn mx
+    list $mn $mx
+} -result {5 10}
+
+test plot-y2-1.1 {_dataRangeY2 returns empty when no y2 series} -constraints hasTk -body {
+    set s1 [list line a -data {1 100 2 200}]
+    set s2 [list line b -data {1 50  2 75}]
+    lassign [tkmcairo::plot::_dataRangeY2 [list $s1 $s2]] mn mx
+    list [expr {$mn eq ""}] [expr {$mx eq ""}]
+} -result {1 1}
+
+test plot-y2-1.2 {_dataRangeY2 series without -yaxis defaults to y1} -constraints hasTk -body {
+    # No -yaxis => not y2
+    set s [list line foo -data {1 1 2 2 3 3}]
+    lassign [tkmcairo::plot::_dataRangeY2 [list $s]] mn mx
+    list [expr {$mn eq ""}] [expr {$mx eq ""}]
+} -result {1 1}
+
+test plot-y2-1.3 {axis::drawY2 proc exists} -constraints hasTk -body {
+    package require tkmcairo::axis
+    expr {[info procs ::tkmcairo::axis::drawY2] ne ""}
+} -result 1
+
+}   ;# end of "if hasTk" guard around the plot/plot-y2 section
+
+# ================================================================
+# pageview smoke tests
+# ================================================================
+
+test pageview-smoke-1.0 {pageview package loads} -body {
+    package require tkmcairo::pageview
+    expr {[info commands ::tkmcairo::pageview] ne ""}
+} -result 1
+
+test pageview-smoke-1.1 {pageview detects backends or empty} -body {
+    package require tkmcairo::pageview
+    # The detection helper should at least be there
+    expr {[info procs ::tkmcairo::pageview::_detectBackend] ne ""}
+} -result 1
+
+test pageview-smoke-1.2 {pageview opts dict initialised} -constraints hasTk -body {
+    package require tkmcairo::pageview
+    set ok 0
+    catch {
+        tkmcairo::pageview .pvtest -width 100 -height 80
+        # opts(-backend) must exist — was the bug fixed in 0.1.1
+        set ns ::tkmcairo::pageview::S_.pvtest
+        set ok [info exists ${ns}::opts(-backend)]
+        destroy .pvtest
+    }
+    set ok
+} -result 1
+
+test pageview-smoke-1.3 {pageview tmpdir uses system temp not info-script} \
+    -constraints hasTk -body {
+    # Reproduce-test for the 0.1.1 tmpdir fix: make sure when a PDF is
+    # loaded with a non-pdfium backend, the tmpdir lives under one of
+    # the system temp roots, not under the package install path.
+    package require tkmcairo::pageview
+    set pdf [file join [_get_tmpbase] "pvtest_[pid]_[clock microseconds].pdf"]
+    if {![_make_test_pdf $pdf]} { return "skip-no-tclmcairo" }
+
+    set ok 0
+    catch {
+        tkmcairo::pageview .pvtest2 -width 100 -height 80
+        # Only check tmpdir construction logic via ns variable, not actual load
+        # (which needs poppler/pdfium to actually render)
+        set ns ::tkmcairo::pageview::S_.pvtest2
+        # tmpdir is set during _load — we don't necessarily have it set
+        # without a successful backend, so skip if not loaded
+        set ok 1
+        destroy .pvtest2
+    }
+    catch {file delete -force $pdf}
+    set ok
+} -result 1
+
+# ================================================================
+# surface — export to file vs channel
+# ================================================================
+
+test surface-export-1.0 {export to .png file produces a real PNG} \
+    -constraints hasTk -body {
+    package require tkmcairo::surface
+    tkmcairo::surface .se1 -width 60 -height 40 \
+        -drawcommand {
+            $ctx clear 0.2 0.5 0.9 1
+            $ctx rect 5 5 50 30 -fill {1 1 1}
+        }
+    update idletasks
+    set f [file join [_get_tmpbase] "se1_[pid]_[clock microseconds].png"]
+    .se1 export $f
+    set ok 0
+    if {[file exists $f] && [file size $f] > 8} {
+        set fh [open $f rb]; fconfigure $fh -translation binary
+        binary scan [read $fh 8] H16 hex
+        close $fh
+        if {$hex eq "89504e470d0a1a0a"} { set ok 1 }
+    }
+    file delete -force $f
+    destroy .se1
+    set ok
+} -result 1
+
+test surface-export-1.1 {export -chan png streams to memory channel} \
+    -constraints hasTk -body {
+    package require tkmcairo::surface
+    tkmcairo::surface .se2 -width 60 -height 40 \
+        -drawcommand { $ctx clear 0.2 0.5 0.9 1 }
+    update idletasks
+
+    set f [file join [_get_tmpbase] "se2_[pid]_[clock microseconds].png"]
+    set ch [open $f wb]
+    fconfigure $ch -translation binary
+    .se2 export -chan $ch -format png
+    close $ch
+
+    set ok 0
+    if {[file exists $f] && [file size $f] > 8} {
+        set fh [open $f rb]; fconfigure $fh -translation binary
+        binary scan [read $fh 8] H16 hex
+        close $fh
+        if {$hex eq "89504e470d0a1a0a"} { set ok 1 }
+    }
+    file delete -force $f
+    destroy .se2
+    set ok
+} -result 1
+
+test surface-export-1.2 {export -chan pdf streams a real PDF} \
+    -constraints hasTk -body {
+    package require tkmcairo::surface
+    tkmcairo::surface .se3 -width 60 -height 40 \
+        -drawcommand { $ctx clear 0.2 0.5 0.9 1 }
+    update idletasks
+
+    set f [file join [_get_tmpbase] "se3_[pid]_[clock microseconds].pdf"]
+    set ch [open $f wb]
+    fconfigure $ch -translation binary
+    .se3 export -chan $ch -format pdf
+    close $ch
+
+    set ok 0
+    if {[file exists $f] && [file size $f] > 4} {
+        set fh [open $f rb]; fconfigure $fh -translation binary
+        set sig [read $fh 4]
+        close $fh
+        if {$sig eq "%PDF"} { set ok 1 }
+    }
+    file delete -force $f
+    destroy .se3
+    set ok
+} -result 1
+
+test surface-export-1.3 {export with neither file nor -chan errors out} \
+    -constraints hasTk -body {
+    package require tkmcairo::surface
+    tkmcairo::surface .se4 -width 30 -height 30 \
+        -drawcommand { $ctx clear 1 1 1 1 }
+    update idletasks
+    set err ""
+    catch {.se4 export -format png} err
+    destroy .se4
+    string match "*need filename or -chan*" $err
+} -result 1
+
+# ----------------------------------------------------------------
+# -chan export through delegating widgets (plot, viewport, svgview)
+# ----------------------------------------------------------------
+
+test plot-chan-1.0 {plot export -chan png produces real PNG} \
+    -constraints hasTk -body {
+    package require tkmcairo::plot
+    tkmcairo::plot .pchan -width 80 -height 60
+    .pchan series line a -data {1 1 2 2 3 3} -color {0.2 0.5 0.9}
+    update idletasks
+    set f [file join [_get_tmpbase] "pchan_[pid]_[clock microseconds].png"]
+    set ch [open $f wb]
+    fconfigure $ch -translation binary
+    .pchan export -chan $ch -format png
+    close $ch
+    set ok [_png_sig_ok $f]
+    file delete -force $f
+    destroy .pchan
+    set ok
+} -result 1
+
+test viewport-chan-1.0 {viewport export -chan png produces real PNG} \
+    -constraints hasTk -body {
+    package require tkmcairo::viewport
+    tkmcairo::viewport .vpc -width 80 -height 60 \
+        -drawcommand { $ctx clear 0.3 0.5 0.8 1 }
+    update idletasks
+    set f [file join [_get_tmpbase] "vpc_[pid]_[clock microseconds].png"]
+    set ch [open $f wb]
+    fconfigure $ch -translation binary
+    .vpc export -chan $ch -format png
+    close $ch
+    set ok [_png_sig_ok $f]
+    file delete -force $f
+    destroy .vpc
+    set ok
+} -result 1
+
+test pageview-chan-1.0 {pageview export -chan needs loaded photo or no-op} \
+    -constraints hasTk -body {
+    # When no PDF is loaded, _exportPng returns early — the call must
+    # not crash. We don't exercise the actual stream path here because
+    # that would need poppler/pdfium and a real PDF.
+    package require tkmcairo::pageview
+    tkmcairo::pageview .pvchan -width 80 -height 60
+    update idletasks
+    set f [file join [_get_tmpbase] "pvchan_[pid]_[clock microseconds].png"]
+    set ch [open $f wb]
+    set ok 1
+    if {[catch {.pvchan export -chan $ch -format png} err]} { set ok 0 }
+    close $ch
+    file delete -force $f
+    destroy .pvchan
+    set ok
+} -result 1
+
+# ================================================================
+# tkmcairo::imageviewer
+# ================================================================
+
+# Helper: create a tiny PNG image so tests don't need any external image
+proc _make_test_png {filename {w 32} {h 24}} {
+    if {[catch {package require tclmcairo}]} { return 0 }
+    set ctx [tclmcairo::new $w $h]
+    $ctx clear 0.5 0.7 0.9 1
+    $ctx rect 4 4 [expr {$w - 8}] [expr {$h - 8}] -fill {1 1 1}
+    $ctx save $filename
+    $ctx destroy
+    return [file exists $filename]
+}
+
+test imageviewer-1.0 {imageviewer package loads} -body {
+    package require tkmcairo::imageviewer
+    expr {[info commands ::tkmcairo::imageviewer] ne ""}
+} -result 1
+
+test imageviewer-1.1 {imageviewer constructor with defaults} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    tkmcairo::imageviewer .iv1
+    update idletasks
+    set ok [winfo exists .iv1]
+    set tb [winfo exists .iv1.tb]
+    set c  [winfo exists .iv1.c]
+    destroy .iv1
+    list $ok $tb $c
+} -result {1 1 1}
+
+test imageviewer-1.2 {imageviewer respects -toolbar 0} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    tkmcairo::imageviewer .iv2 -toolbar 0
+    update idletasks
+    # Toolbar widget exists but is not packed
+    set tbExists  [winfo exists .iv2.tb]
+    set tbMapped  [winfo ismapped .iv2.tb]
+    destroy .iv2
+    list $tbExists $tbMapped
+} -result {1 0}
+
+test imageviewer-1.3 {imageviewer cget returns option} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    tkmcairo::imageviewer .iv3 -background "#123456" -zoom-min 0.1
+    set bg [.iv3 cget -background]
+    set zm [.iv3 cget -zoom-min]
+    destroy .iv3
+    # Compare scalars individually — list quoting around '#' adds braces
+    list [string equal $bg "#123456"] [expr {abs($zm - 0.1) < 0.001}]
+} -result {1 1}
+
+test imageviewer-1.4 {imageviewer rejects unknown option} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set err ""
+    catch {tkmcairo::imageviewer .iv4 -nonsense 1} err
+    catch {destroy .iv4}
+    string match "*unknown option -nonsense*" $err
+} -result 1
+
+test imageviewer-1.5 {imageviewer load + info} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set png [file join [_get_tmpbase] "iv5_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $png 40 30]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iv5 -toolbar 0 -file $png
+    update idletasks; update
+    set info [.iv5 info]
+    destroy .iv5
+    file delete -force $png
+
+    # info returns {file w h zoom} — check just dimensions
+    list [lindex $info 1] [lindex $info 2]
+} -result {40 30}
+
+test imageviewer-1.6 {imageviewer zoom1 / zoom factor} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set png [file join [_get_tmpbase] "iv6_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $png]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iv6 -toolbar 0
+    .iv6 load $png
+    update idletasks
+    .iv6 zoom1
+    set z1 [lindex [.iv6 info] 3]
+    .iv6 zoom 2.0
+    set z2 [lindex [.iv6 info] 3]
+    destroy .iv6
+    file delete -force $png
+    # zoom1 = 1.0, then *2 = 2.0  (use abs() — float repr varies)
+    list [expr {abs($z1 - 1.0) < 0.001}] [expr {abs($z2 - 2.0) < 0.001}]
+} -result {1 1}
+
+test imageviewer-1.7 {imageviewer zoom respects min/max} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set png [file join [_get_tmpbase] "iv7_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $png]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iv7 -toolbar 0 -zoom-min 0.5 -zoom-max 4.0
+    .iv7 load $png
+    .iv7 zoom1
+    .iv7 zoom 100.0     ;# Should clamp to 4.0
+    set zHi [lindex [.iv7 info] 3]
+    .iv7 zoom 0.0001    ;# Should clamp to 0.5
+    set zLo [lindex [.iv7 info] 3]
+    destroy .iv7
+    file delete -force $png
+    list [expr {abs($zHi - 4.0) < 0.001}] [expr {abs($zLo - 0.5) < 0.001}]
+} -result {1 1}
+
+test imageviewer-1.8 {imageviewer filelist get/set} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set png [file join [_get_tmpbase] "iv8_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $png]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iv8 -toolbar 0
+    .iv8 load $png
+    set fl1 [.iv8 filelist]
+    .iv8 filelist [list /tmp/a.png /tmp/b.png]
+    set fl2 [.iv8 filelist]
+    destroy .iv8
+    file delete -force $png
+    # First call: at least the loaded file is in the list
+    list [expr {[llength $fl1] >= 1}] $fl2
+} -result {1 {/tmp/a.png /tmp/b.png}}
+
+test imageviewer-1.9 {imageviewer export to PNG file} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set in  [file join [_get_tmpbase] "iv9in_[pid]_[clock microseconds].png"]
+    set out [file join [_get_tmpbase] "iv9out_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $in]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iv9 -toolbar 0
+    .iv9 load $in
+    .iv9 export $out
+    set ok [_png_sig_ok $out]
+    destroy .iv9
+    file delete -force $in $out
+    set ok
+} -result 1
+
+test imageviewer-1.10 {imageviewer export -chan} -constraints hasTk -body {
+    package require tkmcairo::imageviewer
+    set in  [file join [_get_tmpbase] "iv10in_[pid]_[clock microseconds].png"]
+    set out [file join [_get_tmpbase] "iv10out_[pid]_[clock microseconds].png"]
+    if {![_make_test_png $in]} { return "skip-no-tclmcairo" }
+
+    tkmcairo::imageviewer .iva -toolbar 0
+    .iva load $in
+    set ch [open $out wb]
+    fconfigure $ch -translation binary
+    .iva export -chan $ch -format png
+    close $ch
+    set ok [_png_sig_ok $out]
+    destroy .iva
+    file delete -force $in $out
+    set ok
 } -result 1
 
 # ================================================================

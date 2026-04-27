@@ -1,47 +1,47 @@
 # tkmcairo::coords 0.1
 #
-# Coordinate transform between data world and Cairo pixels.
-# Building block for tkmcairo::plot, tkmcairo::axis, tkmcairo::viewport.
+# Koordinaten-Transformation zwischen Datenwelt und Cairo-Pixeln.
+# Basis-Baustein für tkmcairo::plot, tkmcairo::axis, tkmcairo::viewport.
 #
 # API:
 #   set tr [tkmcairo::coords::transform new ?options?]
 #
-#   Options:
-#     -xmin -xmax -ymin -ymax     data-world bounds
-#     -px0 -py0 -px1 -py1         pixel bounds (plot area)
-#     -flipy  0|1                 invert Y axis (default 1, top = max)
+#   Optionen:
+#     -xmin -xmax -ymin -ymax     Datenwelt-Grenzen
+#     -px0 -py0 -px1 -py1        Pixel-Grenzen (Plot-Area)
+#     -flipy  0|1                 Y-Achse umkehren (Standard: 1, oben=max)
 #
-#   Methods:
-#     $tr toPixelX  xval          -> pixel X
-#     $tr toPixelY  yval          -> pixel Y
+#   Methoden:
+#     $tr toPixelX  xval          -> Pixel-X
+#     $tr toPixelY  yval          -> Pixel-Y
 #     $tr toPixel   xval yval     -> {px py}
-#     $tr toWorldX  px            -> data X
-#     $tr toWorldY  py            -> data Y
+#     $tr toWorldX  px            -> Datenwert-X
+#     $tr toWorldY  py            -> Datenwert-Y
 #     $tr toWorld   px py         -> {xval yval}
 #
-#     $tr configure ?opts?        -> update (recompute)
-#     $tr cget option             -> read a value
+#     $tr configure ?opts?        -> Update (neu berechnen)
+#     $tr cget option             -> Wert abfragen
 #     $tr bounds                  -> {xmin xmax ymin ymax px0 py0 px1 py1}
 #     $tr pixelBounds             -> {px0 py0 px1 py1}
 #     $tr worldBounds             -> {xmin xmax ymin ymax}
-#     $tr plotW                   -> pixel width of the plot area
-#     $tr plotH                   -> pixel height of the plot area
+#     $tr plotW                   -> Pixel-Breite der Plot-Area
+#     $tr plotH                   -> Pixel-Höhe der Plot-Area
 #
-#     $tr zoom  factor cx cy      -> zoom around a pixel centre
-#     $tr pan   dpx dpy           -> shift in pixels
-#     $tr reset                   -> restore the original bounds
+#     $tr zoom  factor cx cy      -> Zoom um Pixel-Mittelpunkt
+#     $tr pan   dpx dpy           -> Verschiebung in Pixel
+#     $tr reset                   -> Ursprüngliche Grenzen wiederherstellen
 #
 #     $tr destroy
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::coords 0.1
+package provide tkmcairo::coords 0.1.1
 
 namespace eval ::tkmcairo::coords {}
 
 # ============================================================
-# Constructor
+# Konstruktor
 # ============================================================
 proc ::tkmcairo::coords::transform {subcmd args} {
     if {$subcmd ne "new"} {
@@ -58,20 +58,20 @@ proc ::tkmcairo::coords::transform {subcmd args} {
     }
     foreach {k v} $args { set opts($k) $v }
 
-    # Unique name
+    # Eindeutiger Name
     variable _count
     if {![info exists _count]} { set _count 0 }
     set id "::tkmcairo::coords::T[incr _count]"
 
     namespace eval $id {
         variable opts
-        variable orig   ;# original bounds for reset
+        variable orig   ;# Ursprungsgrenzen für reset
     }
 
     array set ${id}::opts [array get opts]
     array set ${id}::orig [array get opts]
 
-    # OO-style command: calls forwarded to _cmd
+    # OO-artiger Command: Aufrufe werden an _cmd weitergeleitet
     interp alias {} $id {} ::tkmcairo::coords::_cmd $id
 
     return $id
@@ -139,7 +139,7 @@ proc ::tkmcairo::coords::_toPixelY {id yval} {
     set yrange [expr {$o(-ymax) - $o(-ymin)}]
     if {$yrange == 0} { return $o(-py0) }
     if {$o(-flipy)} {
-        # Y axis inverted: higher values on top (Cairo: y=0 is top)
+        # Y-Achse umgekehrt: höhere Werte oben (Cairo: y=0 oben)
         expr {$o(-py1) - ($yval - $o(-ymin)) / double($yrange) * ($o(-py1) - $o(-py0))}
     } else {
         expr {$o(-py0) + ($yval - $o(-ymin)) / double($yrange) * ($o(-py1) - $o(-py0))}

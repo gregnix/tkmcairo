@@ -211,7 +211,7 @@ proc drawText {ctx w h} {
     # Baseline (rot)
     $ctx line [expr {$tx - 5}] $bly [expr {$tx + $tw + 30}] $bly         -color {0.85 0.25 0.25 0.8} -width 1.5 -dash {4 3}
 
-    # Descent line (green)
+    # Descent-Linie (grün)
     set descy [expr {$bly + $desc}]
     $ctx line [expr {$tx - 5}] $descy [expr {$tx + $tw + 30}] $descy         -color {0.2 0.7 0.35 0.6} -width 1 -dash {6 3}
 

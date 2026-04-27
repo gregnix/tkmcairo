@@ -1,27 +1,27 @@
 # tkmcairo::data 0.1
 #
-# Data helpers for tkmcairo charts.
+# Daten-Hilfsfunktionen für tkmcairo Charts.
 #
 # API:
 #   tkmcairo::data::range     xydata     -> {xmin xmax ymin ymax}
 #   tkmcairo::data::xrange    xydata     -> {xmin xmax}
 #   tkmcairo::data::yrange    xydata     -> {ymin ymax}
-#   tkmcairo::data::smooth    xydata n   -> smoothed xydata (moving average)
+#   tkmcairo::data::smooth    xydata n   -> geglättete xydata (Moving Average)
 #   tkmcairo::data::boxstats  values     -> {min q1 median q3 max mean}
 #   tkmcairo::data::histogram values ?-bins n? ?-min m? ?-max m? -> {label count ...}
-#   tkmcairo::data::timeToNum datestr    -> epoch seconds
-#   tkmcairo::data::numToTime epoch ?fmt? -> date string
-#   tkmcairo::data::normalize xydata    -> xydata normalised to 0..1
-#   tkmcairo::data::cumsum    values    -> cumulative sum
+#   tkmcairo::data::timeToNum datestr    -> Epoch-Sekunden
+#   tkmcairo::data::numToTime epoch ?fmt? -> Datumsstring
+#   tkmcairo::data::normalize xydata    -> xydata normalisiert 0..1
+#   tkmcairo::data::cumsum    values    -> kumulative Summe
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::data 0.1
+package provide tkmcairo::data 0.1.1
 
 namespace eval ::tkmcairo::data {}
 
-# Value range from x-y pairs
+# Wertebereich aus x-y-Paaren
 proc ::tkmcairo::data::range {xydata} {
     if {[llength $xydata] < 2} { return {0 1 0 1} }
     set xmin ""; set xmax ""; set ymin ""; set ymax ""
@@ -44,7 +44,7 @@ proc ::tkmcairo::data::yrange {xydata} {
     list $ymin $ymax
 }
 
-# Moving-average smoothing
+# Moving Average Glättung
 proc ::tkmcairo::data::smooth {xydata n} {
     if {$n <= 1 || [llength $xydata] < 4} { return $xydata }
     set xs {}; set ys {}
@@ -64,7 +64,7 @@ proc ::tkmcairo::data::smooth {xydata n} {
     return $result
 }
 
-# Boxplot statistics
+# Box-Plot Statistik
 proc ::tkmcairo::data::boxstats {values} {
     if {[llength $values] == 0} { return {0 0 0 0 0 0} }
     set sorted [lsort -real $values]
@@ -80,14 +80,14 @@ proc ::tkmcairo::data::boxstats {values} {
     # Q1, Q3
     set q1 [lindex $sorted [expr {$n/4}]]
     set q3 [lindex $sorted [expr {3*$n/4}]]
-    # Mean
+    # Mittelwert
     set sum 0
     foreach v $values { set sum [expr {$sum + $v}] }
     set mean [expr {$sum / double($n)}]
     list $mn $q1 $med $q3 $mx $mean
 }
 
-# Histogram: values -> bins with labels and counts
+# Histogramm: Werte → Bins mit Labels und Counts
 proc ::tkmcairo::data::histogram {values args} {
     array set opts {-bins 10 -min "" -max ""}
     foreach {k v} $args { set opts($k) $v }
@@ -103,7 +103,7 @@ proc ::tkmcairo::data::histogram {values args} {
     set bins $opts(-bins)
     set bw [expr {($mx - $mn) / double($bins)}]
 
-    # Initialise bins
+    # Bins initialisieren
     set counts [lrepeat $bins 0]
     foreach v $values {
         set idx [expr {int(($v - $mn) / $bw)}]
@@ -121,17 +121,17 @@ proc ::tkmcairo::data::histogram {values args} {
     return $result
 }
 
-# Date -> epoch
+# Datum → Epoch
 proc ::tkmcairo::data::timeToNum {datestr} {
     clock scan $datestr
 }
 
-# Epoch -> date string
+# Epoch → Datumsstring
 proc ::tkmcairo::data::numToTime {epoch {fmt "%Y-%m-%d"}} {
     clock format [expr {int($epoch)}] -format $fmt
 }
 
-# Normalisation to 0..1
+# Normalisierung auf 0..1
 proc ::tkmcairo::data::normalize {xydata} {
     lassign [range $xydata] xmin xmax ymin ymax
     set xr [expr {$xmax - $xmin}]
@@ -147,7 +147,7 @@ proc ::tkmcairo::data::normalize {xydata} {
     return $result
 }
 
-# Cumulative sum
+# Kumulative Summe
 proc ::tkmcairo::data::cumsum {values} {
     set result {}
     set sum 0

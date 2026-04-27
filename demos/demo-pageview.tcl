@@ -15,7 +15,7 @@ package require tkmcairo::pageview
 wm title . "tkmcairo PDF Viewer"
 wm geometry . 900x950
 
-# Menu / toolbar
+# Menü / Toolbar
 ttk::frame .tb
 pack .tb -fill x -padx 4 -pady 4
 ttk::button .tb.open -text "Open PDF..." -command pvOpen

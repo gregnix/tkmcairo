@@ -1,13 +1,13 @@
 # tkmcairo Makefile
 
 PACKAGE_NAME    = tkmcairo
-PACKAGE_VERSION = 0.1
+PACKAGE_VERSION = 0.1.1
 
 TCLSH   ?= tclsh
 WISH    ?= wish
 
-# tclmcairo Installation (für Tests + Demos)
-TCLMCAIRO_DIR ?= /usr/lib/tcltk/tclmcairo0.3.4
+# tclmcairo Installation (für Tests + Demos) — modern install
+TCLMCAIRO_DIR ?= /usr/lib/tcltk/tclmcairo0.3.6
 
 # Installationsverzeichnis
 INSTALL_DIR ?= /usr/lib/tcltk/$(PACKAGE_NAME)$(PACKAGE_VERSION)
@@ -37,6 +37,9 @@ demo-surface:
 demo-plot:
 	TCLMCAIRO_LIBDIR=$(TCLMCAIRO_DIR) $(WISH) demos/demo-plot.tcl
 
+demo-plot-y2:
+	TCLMCAIRO_LIBDIR=$(TCLMCAIRO_DIR) $(WISH) demos/demo-plot-y2.tcl
+
 demo-viewport:
 	TCLMCAIRO_LIBDIR=$(TCLMCAIRO_DIR) $(WISH) demos/demo-viewport.tcl
 
@@ -54,6 +57,9 @@ demo-svgview:
 
 demo-pageview:
 	TCLMCAIRO_LIBDIR=$(TCLMCAIRO_DIR) $(WISH) demos/demo-pageview.tcl
+
+demo-chan-export:
+	TCLMCAIRO_LIBDIR=$(TCLMCAIRO_DIR) $(WISH) demos/demo-chan-export.tcl
 
 demo: demo-surface demo-plot demo-viewport demo-scene demo-axis demo-svgview
 

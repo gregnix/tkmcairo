@@ -1,98 +1,118 @@
-# tkmcairo — Concept and Architectural Vision
+# tkmcairo — Konzept und Architektur-Vision
 
-Status: 2026-04-12
-
----
-
-## Goal
-
-tkmcairo is **not** a Canvas extension and not a Canvas clone.
-It is a Cairo-based rendering platform for Tk — with two layers:
-
-1. **Rendering building blocks** — reusable helpers for coordinates,
-   axes, legend, data
-2. **Ready-made widgets** — surface, plot, viewport, scene
-
-Third parties can build their own chart types or visualizations
-without knowing Cairo internals — they just use the building blocks.
+Stand: 2026-04-27
 
 ---
 
-## Architecture overview
+## Ziel
+
+tkmcairo ist **keine** Canvas-Erweiterung und kein Canvas-Klon.
+Es ist eine Cairo-basierte Rendering-Plattform für Tk — mit zwei Ebenen:
+
+1. **Rendering-Bausteine** — wiederverwendbare Hilfsfunktionen für
+   Koordinaten, Achsen, Legende, Daten
+2. **Fertige Widgets** — surface, plot, viewport, scene
+
+Dritte können eigene Chart-Typen oder Visualisierungen bauen
+ohne Cairo-Details zu kennen — nur die Bausteine verwenden.
+
+---
+
+## Vergleich: Plotchart vs tkmcairo
+
+| Merkmal | tklib Plotchart | tkmcairo::plot |
+|---------|----------------|----------------|
+| Rendering | Tk-Canvas | Cairo (Antialiasing) |
+| PDF-Export | nein (Umweg) | nativ, Vektorqualität |
+| SVG-Export | nein | nativ |
+| Gradients/Alpha | nein | ja |
+| Erweiterbarkeit | schwer (globale Arrays) | Bausteine |
+| Chart-Typen | 30+ | 4 (0.1), wächst |
+| Zeitachsen | ja | geplant 0.2 |
+| Reife | sehr hoch | 0.1 |
+
+**Plotchart und tkmcairo schließen sich nicht aus.**
+Wer Plotchart kennt kann tkmcairo-Algorithmen (niceTicks, determineScale)
+aus plotaxis.tcl übernehmen — die Lizenz (Tcl-Lizenz, Arjen Markus)
+erlaubt das mit Attribution.
+
+---
+
+## Architektur-Übersicht
 
 ```
-Application / custom algorithms
+Applikation / eigene Algorithmen
         |
-tkmcairo::plot          ready-made charts (line, area, bar, scatter, pie ...)
+tkmcairo::plot          fertige Charts (line, area, bar, scatter, pie ...)
         |
-tkmcairo::helpers       rendering building blocks (coords, axis, legend, data)
+tkmcairo::helpers       Rendering-Bausteine (coords, axis, legend, data)
         |
-tkmcairo::surface       Cairo drawing surface as a Tk widget
+tkmcairo::surface       Cairo-Zeichenfläche als Tk-Widget
         |
-tclmcairo               low-level Cairo binding (C extension)
+tclmcairo               Low-Level Cairo Binding (C-Extension)
         |
-Cairo 1.18+             2D vector graphics
+Cairo 1.18+             2D Vektorgrafik
 ```
 
 ---
 
-## Module structure (current + planned)
+## Modul-Struktur (aktuell + geplant)
 
 ```
 tcl/tkmcairo/
-  surface-0.1.tm     (0.1) ← core widget: ttk::label + tclmcairo
-  plot-0.1.tm        (0.1) ← ready-made charts: line, area, scatter, bar
+  surface-0.1.tm     (0.1) ← Core Widget: ttk::label + tclmcairo
+  plot-0.1.tm        (0.1) ← Fertige Charts: line, area, scatter, bar
 
-  coords-0.1.tm      (0.2) ← coordinate transform
-  axis-0.1.tm        (0.2) ← axis drawing (X, Y, time)
-  legend-0.1.tm      (0.2) ← legend
-  data-0.1.tm        (0.2) ← data helpers
+  coords-0.1.tm      (0.2) ← Koordinaten-Transformation
+  axis-0.1.tm        (0.2) ← Achsen zeichnen (X, Y, Zeit)
+  legend-0.1.tm      (0.2) ← Legende
+  data-0.1.tm        (0.2) ← Daten-Hilfsfunktionen
 
-  viewport-0.1.tm    (0.2) ← scrollable / zoomable surface
-  scene-0.1.tm       (0.2) ← retained-mode scene graph
-  widgets-0.1.tm     (0.2) ← Cairo-rendered Tk widgets
+  viewport-0.1.tm    (0.2) ← Scrollbares/zoombares Surface
+  scene-0.1.tm       (0.2) ← Retained-Mode Szenengraph
+  widgets-0.1.tm     (0.2) ← Cairo-gerenderte Tk-Widgets
 
-  pageview-0.1.tm    (0.3) ← PDF page display
+  pageview-0.1.tm    (0.3) ← PDF-Seiten-Anzeige
 ```
 
 ---
 
-## Rendering building blocks (helpers) — detailed plan
+## Rendering-Bausteine (helpers) — Detailplan
 
 ### tkmcairo::coords
 
-Coordinate transform between data world and Cairo pixels.
-The basis for every chart type.
+Koordinaten-Transformation zwischen Datenwelt und Cairo-Pixeln.
+Basis für alle Chart-Typen.
 
 ```tcl
-# Create a transform object
+# Transform-Objekt erstellen
 set tr [tkmcairo::coords::transform new \
     -xmin 0 -xmax 12 -ymin -15 -ymax 45 \
     -px0 60 -py0 40 -px1 580 -py1 360]
 
-# Convert coordinates
+# Koordinaten umrechnen
 set px [$tr toPixelX 6.5]
 set py [$tr toPixelY 22.3]
 lassign [$tr toPixel 6.5 22.3] px py
 lassign [$tr toWorld $px $py] xv yv
 
 # Pan + Zoom
-$tr zoom  1.5 $cx $cy   ;# zoom around a centre point
-$tr pan   20  -10        ;# shift in pixels
-$tr reset               ;# back to origin
+$tr zoom  1.5 $cx $cy   ;# Zoom um Mittelpunkt
+$tr pan   20  -10        ;# Verschiebung in Pixel
+$tr reset               ;# Ursprung
 
-# Queries
+# Abfragen
 lassign [$tr worldBounds] xmin xmax ymin ymax
 lassign [$tr pixelBounds] px0 py0 px1 py1
 ```
 
 ### tkmcairo::axis
 
-Draws axes with Cairo. Uses a coords transform internally.
+Achsen zeichnen mit Cairo. Nutzt coords-Transform intern.
 
 ```tcl
 tkmcairo::axis::drawX $ctx $tr \
-    -label "Month" \
+    -label "Monat" \
     -format "%.0f" \
     -ticks 12 \
     -grid 1 \
@@ -106,20 +126,20 @@ tkmcairo::axis::drawY $ctx $tr \
     -ticks 5 \
     -grid 1
 
-# Time axis (date / time)
+# Zeitachse (Datum/Uhrzeit)
 tkmcairo::axis::drawTimeX $ctx $tr \
     -start "2026-01-01" \
     -end   "2026-12-31" \
     -format "%b" \
     -ticks monthly
 
-# Secondary Y axis on the right
+# Zweite Y-Achse rechts
 tkmcairo::axis::drawY2 $ctx $tr2 -label "%" -color {0.8 0.3 0.2}
 ```
 
 ### tkmcairo::legend
 
-Draw a legend.
+Legende zeichnen.
 
 ```tcl
 tkmcairo::legend::draw $ctx $series \
@@ -131,31 +151,31 @@ tkmcairo::legend::draw $ctx $series \
 
 ### tkmcairo::data
 
-Data helpers.
+Daten-Hilfsfunktionen.
 
 ```tcl
-# Value range from a data list
+# Wertebereich aus Datenliste
 lassign [tkmcairo::data::range $xydata] xmin xmax ymin ymax
 
-# Timestamp → numeric value
+# Zeitstempel → numerischer Wert
 set t [tkmcairo::data::timeToNum "2026-06-15"]
 
-# Smoothing (moving average)
+# Glättung (Moving Average)
 set smooth [tkmcairo::data::smooth $xydata 3]
 
-# Boxplot statistics
+# Statistik für Boxplot
 lassign [tkmcairo::data::boxstats $values] q0 q1 median q3 q4
 
-# Histogram aggregation
+# Aggregation für Histogramm
 set bins [tkmcairo::data::histogram $values -bins 10 -min 0 -max 100]
 ```
 
 ---
 
-## Building your own chart types
+## Eigene Chart-Typen bauen
 
-To build a new chart type (e.g. boxplot, Gantt, radar) you only need
-the building blocks — no Cairo knowledge required:
+Wer einen neuen Chart-Typ (z.B. Boxplot, Gantt, Radar) bauen will
+braucht nur die Bausteine — keine Cairo-Kenntnisse nötig:
 
 ```tcl
 package require tkmcairo::surface
@@ -167,22 +187,22 @@ tkmcairo::surface .p -width 600 -height 400 \
     -drawcommand {drawBoxplot $ctx $w $h $mydata}
 
 proc drawBoxplot {ctx w h data} {
-    # 1. Coordinate transform
+    # 1. Koordinaten-Transform
     set tr [tkmcairo::coords::transform new \
         -xmin 0 -xmax [llength $data] \
         -ymin 0 -ymax 100 \
         -px0 60 -py0 20 -px1 [expr {$w-20}] -py1 [expr {$h-40}]]
 
-    # 2. Axes
+    # 2. Achsen
     tkmcairo::axis::drawX $ctx $tr -ticks [llength $data]
     tkmcairo::axis::drawY $ctx $tr -grid 1
 
-    # 3. Custom algorithm — only Cairo from here on
+    # 3. Eigener Algorithmus — nur Cairo
     set i 0
     foreach {lbl values} $data {
         lassign [tkmcairo::data::boxstats $values] q0 q1 med q3 q4
         set px [$tr toPixelX $i]
-        # ... draw with Cairo ...
+        # ... Cairo zeichnen ...
         incr i
     }
 }
@@ -190,44 +210,46 @@ proc drawBoxplot {ctx w h data} {
 
 ---
 
-## Widget hierarchy
+## Widget-Hierarchie
 
 ```
-tkmcairo::surface          core widget (done)
+tkmcairo::surface          Core Widget (fertig)
     |
-    ├── tkmcairo::plot      ready-made charts (done, growing)
+    ├── tkmcairo::plot      Fertige Charts (fertig, wächst)
     |
-    ├── tkmcairo::viewport  scrollbars + zoom/pan (0.2)
+    ├── tkmcairo::viewport  Scrollbar + Zoom/Pan (0.2)
     |       |
-    |       └── tkmcairo::pageview  PDF display (0.3)
+    |       └── tkmcairo::pageview  PDF-Anzeige (0.3)
     |
-    └── tkmcairo::scene     retained-mode scene graph (0.2)
+    └── tkmcairo::scene     Retained-Mode Szenengraph (0.2)
             |
-            └── tkmcairo::widgets  Cairo widgets (0.2)
+            └── tkmcairo::widgets  Cairo-Widgets (0.2)
 ```
 
 ---
 
-## Scope and relationships
+## Abgrenzung
 
-| Project | Purpose | Relationship |
-|---------|---------|--------------|
-| tkpath | Cairo Canvas extension | needs a display, different goal |
-| tclmcairo | Cairo C binding | foundation of tkmcairo |
-| BLT | chart widgets | no export, no antialiasing |
+| Projekt | Zweck | Verhältnis |
+|---------|-------|------------|
+| tklib Plotchart | 30+ Chart-Typen, Canvas | Algorithmen nutzbar (Tcl-Lizenz) |
+| tkpath | Cairo-Canvas-Extension | Braucht Display, anderes Ziel |
+| TkMoin | Wayland-natives GUI | Widgets-Code portierbar |
+| tclmcairo | Cairo-C-Binding | Basis von tkmcairo |
+| BLT | Chart-Widgets | Kein Export, kein Antialiasing |
 
 ---
 
-## Core principles
+## Kernprinzipien
 
-**Composability** — small modules that build on each other.
-Nobody has to import everything.
+**Composability** — Kleine Module, aufeinander aufbauend.
+Niemand muss alles importieren.
 
-**Tk philosophy** — widget paths, geometry-manager-compatible,
-no separate event loop.
+**Tk-Philosophie** — Widget-Pfade, Geometry-Manager-kompatibel,
+keine eigene Event-Loop.
 
-**Drawcommand pattern** — the same script for screen and export.
-`$ctx $w $h` as parameters — easy to extend.
+**Drawcommand-Pattern** — Dasselbe Skript für Screen + Export.
+`$ctx $w $h` als Variablen — einfach erweiterbar.
 
-**Cairo quality** — antialiasing, gradients, alpha, vector export.
-This is the main advantage over Canvas-based solutions.
+**Cairo-Qualität** — Antialiasing, Gradients, Alpha, Vektorexport.
+Das ist der Hauptvorteil gegenüber Canvas-basierten Lösungen.

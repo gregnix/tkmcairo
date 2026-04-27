@@ -1,34 +1,35 @@
 # tkmcairo::pageview 0.1
 #
-# PDF page-preview widget — displays PDF pages via pdfiumtcl.
-# Supports navigation, zoom, bookmark panel, text search, export.
+# PDF-Seitenvorschau Widget — zeigt PDF-Seiten via pdfiumtcl.
+# Unterstützt Navigation, Zoom, Lesezeichen-Panel, Textsuche, Export.
 #
 # API:
 #   tkmcairo::pageview pathName ?options?
 #
 #   Options:
-#     -width  n          width in pixels (default 700)
-#     -height n          height in pixels (default 900)
-#     -file   filename   PDF file (optional)
-#     -dpi    n          render resolution (default 150)
+#     -width  n          Breite in Pixeln (default 700)
+#     -height n          Höhe in Pixeln (default 900)
+#     -file   filename   PDF-Datei (optional)
+#     -dpi    n          Render-Auflösung (default 150)
 #     -background {r g b}
 #
-#   Widget commands:
+#   Widget-Commands:
 #     $pv load filename ?password?
-#     $pv page  n         go to page n (0-based)
-#     $pv next            next page
-#     $pv prev            previous page
-#     $pv first           first page
-#     $pv last            last page
-#     $pv zoom  factor    multiply zoom factor
-#     $pv zoomfit         fit to width
+#     $pv page  n         Zu Seite n gehen (0-basiert)
+#     $pv next            Nächste Seite
+#     $pv prev            Vorherige Seite
+#     $pv first           Erste Seite
+#     $pv last            Letzte Seite
+#     $pv zoom  factor    Zoom multiplizieren
+#     $pv zoomfit         An Breite anpassen
 #     $pv zoom1           100%
-#     $pv dpi   n         set DPI
-#     $pv pagecount       number of pages
-#     $pv currentpage     current page (0-based)
-#     $pv file            current filename
-#     $pv search text     text search -> pages with hits
-#     $pv export filename PNG export of the current page
+#     $pv dpi   n         DPI setzen
+#     $pv pagecount       Anzahl Seiten
+#     $pv currentpage     Aktuelle Seite (0-basiert)
+#     $pv file            Aktueller Dateiname
+#     $pv search text     Text suchen → Seiten mit Treffern
+#     $pv export filename            PNG export of current page
+#     $pv export -chan $ch ?-format png?  stream PNG bytes to a Tcl channel
 #     $pv redraw
 #     $pv destroy
 #
@@ -37,7 +38,7 @@
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::pageview 0.1
+package provide tkmcairo::pageview 0.1.1
 
 package require Tk
 
@@ -45,7 +46,7 @@ namespace eval ::tkmcairo::pageview {}
 
 
 # ============================================================
-# Backend detection
+# Backend-Erkennung
 # ============================================================
 proc ::tkmcairo::pageview::_detectBackend {pref} {
     if {$pref eq "pdfium"} {
@@ -109,7 +110,7 @@ proc ::tkmcairo::pageview {w args} {
     }
     set ns ::tkmcairo::pageview::S_${w}
     set ${ns}::dpi  $opts(-dpi)
-    # Keep options for _load / _render (e.g. -backend) in the widget namespace
+    # Optionen für _load / _render (u. a. -backend) im Widget-Namespace halten
     foreach {k v} [array get opts] {
         set ${ns}::opts($k) $v
     }
@@ -182,7 +183,7 @@ proc ::tkmcairo::pageview::_buildUI {w width height showbm} {
             [list ::tkmcairo::pageview::_bmSelect $w]
     }
 
-    # Canvas for the PDF page
+    # Canvas für PDF-Seite
     canvas $w.main.cv \
         -width  [expr {$showbm ? $width - 180 : $width}] \
         -height $height \
@@ -237,7 +238,7 @@ proc ::tkmcairo::pageview::_cmd {w subcmd args} {
         currentpage { return [set ${ns}::curpage] }
         file      { return [set ${ns}::file] }
         search    { return [::tkmcairo::pageview::_search $w [lindex $args 0]] }
-        export    { _exportPng $w [lindex $args 0] }
+        export    { _exportPng $w {*}$args }
         redraw    { ::tkmcairo::pageview::_render $w }
         destroy   { destroy $w }
         default   {
@@ -266,12 +267,12 @@ proc ::tkmcairo::pageview::_load {w file {password ""}} {
     }
     set ${ns}::backend $backend
 
-    # Close any previous document
+    # Altes Dokument schließen
     if {[set ${ns}::doc] ne ""} {
         catch {pdfium::close [set ${ns}::doc]}
         set ${ns}::doc ""
     }
-    # Clean up the previous tmpdir
+    # Altes tmpdir aufräumen
     set tmpdir [set ${ns}::tmpdir]
     if {$tmpdir ne "" && [file exists $tmpdir]} {
         catch {file delete -force $tmpdir}
@@ -297,8 +298,23 @@ proc ::tkmcairo::pageview::_load {w file {password ""}} {
         set ${ns}::doc ""
         set n [::tkmcairo::pageview::_countPages $w $file $backend]
         set ${ns}::pagecount $n
-        # tmpdir for cached PNGs
-        set td [file join [file dirname [info script]] ".pvcache_[pid]"]
+        # tmpdir for cached PNGs — system temp, not info-script based.
+        # Old approach (info script -> .pvcache_PID) put it next to the
+        # package install, which fails on read-only installs and causes
+        # cleanup permission issues.
+        set tmpbase ""
+        if {[info exists ::env(TMPDIR)] && [file isdirectory $::env(TMPDIR)]} {
+            set tmpbase $::env(TMPDIR)
+        } elseif {[file isdirectory /tmp]} {
+            set tmpbase /tmp
+        } elseif {[info exists ::env(TEMP)] && [file isdirectory $::env(TEMP)]} {
+            set tmpbase $::env(TEMP)
+        } else {
+            set tmpbase [pwd]
+        }
+        # Unique per widget instance (PID + microseconds)
+        set td [file join $tmpbase \
+            "tkmcairo_pageview_[pid]_[clock microseconds]"]
         file mkdir $td
         set ${ns}::tmpdir $td
     }
@@ -308,14 +324,14 @@ proc ::tkmcairo::pageview::_load {w file {password ""}} {
 }
 
 proc ::tkmcairo::pageview::_countPages {w file backend} {
-    # pdfinfo for page count
+    # pdfinfo für Seitenanzahl
     if {[auto_execok pdfinfo] ne ""} {
         catch {
             set out [exec pdfinfo $file]
             if {[regexp {Pages:\s+(\d+)} $out -> n]} { return $n }
         }
     }
-    # Fallback: render first page with pdftoppm and count
+    # Fallback: pdftoppm erste Seite rendern und zählen
     return 1
 }
 
@@ -508,10 +524,30 @@ proc ::tkmcairo::pageview::_search {w txt} {
 # ============================================================
 # Export
 # ============================================================
-proc ::tkmcairo::pageview::_exportPng {w {file ""}} {
+proc ::tkmcairo::pageview::_exportPng {w args} {
     set ns ::tkmcairo::pageview::S_${w}
     if {[set ${ns}::doc] eq ""} return
-    if {$file eq ""} {
+
+    # Parse args: file (positional) OR -chan ?-format?
+    set file ""
+    set chan ""
+    set fmt  png
+    if {[llength $args] == 1} {
+        set file [lindex $args 0]
+    } else {
+        foreach {k v} $args {
+            switch -- $k {
+                -chan   { set chan $v }
+                -format { set fmt $v }
+                -file   { set file $v }
+                default {
+                    error "tkmcairo::pageview export: unknown option $k"
+                }
+            }
+        }
+    }
+
+    if {$file eq "" && $chan eq ""} {
         set base [file rootname [file tail [set ${ns}::file]]]
         set p    [expr {[set ${ns}::curpage] + 1}]
         set file [tk_getSaveFile \
@@ -521,11 +557,26 @@ proc ::tkmcairo::pageview::_exportPng {w {file ""}} {
             -title "Export Page as PNG"]
         if {$file eq ""} return
     }
+
     set imgname [set ${ns}::imgname]
-    if {$imgname ne "" && [image exists $imgname]} {
-        $imgname write $file -format png
-        $w.status configure -text "Exported: $file"
+    if {$imgname eq "" || ![image exists $imgname]} return
+
+    if {$chan ne ""} {
+        # Tk photo write does not accept -chan, so go through 'data'
+        # which gives us base64 — decode and stream out.
+        # 'data -format png' returns base64 by default; we need raw bytes.
+        if {[catch {$imgname data -format png} b64]} {
+            error "pageview export -chan: photo data export failed: $b64"
+        }
+        # Tk's photo data returns base64-encoded PNG by default
+        set bytes [binary decode base64 $b64]
+        fconfigure $chan -translation binary
+        puts -nonewline $chan $bytes
+        return
     }
+
+    $imgname write $file -format png
+    $w.status configure -text "Exported: $file"
 }
 
 # ============================================================

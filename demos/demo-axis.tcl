@@ -141,7 +141,7 @@ proc drawBar {ctx w h} {
 
     set ml 70; set mr 30; set mt 40; set mb 50
 
-    set labels {Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec}
+    set labels {Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez}
     set vals   {42 38 55 61 70 85 92 88 74 63 48 35}
 
     set n  [llength $vals]
@@ -259,7 +259,7 @@ proc drawScatter {ctx w h} {
             -fill {0.4 0.6 0.9 0.5} -stroke {0.3 0.5 0.8 0.7} -width 0.5
     }
 
-    # Smoothing line
+    # Glättungslinie
     set pts {}
     foreach {x y} $smoothed {
         lappend pts [$tr toPixelX $x] [$tr toPixelY $y]
@@ -270,10 +270,10 @@ proc drawScatter {ctx w h} {
             -color {0.85 0.3 0.2 0.9} -width 2.5
     }
 
-    # Legend
+    # Legende
     set series [list \
-        [dict create name "Samples" color {0.4 0.6 0.9} type scatter] \
-        [dict create name "Smoothed n=7" color {0.85 0.3 0.2} type line]]
+        [dict create name "Messwerte" color {0.4 0.6 0.9} type scatter] \
+        [dict create name "Glättung n=7" color {0.85 0.3 0.2} type line]]
     tkmcairo::legend::draw $ctx $series \
         -position ne -pw [expr {$w-$mr}] -ph [expr {$h-$mb}]
 

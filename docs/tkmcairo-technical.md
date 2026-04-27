@@ -1,75 +1,75 @@
-# tkmcairo — Technical Documentation
+# tkmcairo — Technische Dokumentation
 
-Status: 2026-04-12 | Version: 0.1.0
+Stand: 2026-04-27 | Version: 0.1.1
 
 ---
 
-## Architecture overview
+## Architektur-Überblick
 
 ```
-Tk application
+Tk-Applikation
       |
 tkmcairo::surface     (ttk::frame + ttk::label + Tk photo image)
       |
-tclmcairo             (off-screen Cairo context)
+tclmcairo             (Off-screen Cairo context)
       |
-Cairo                 (2D vector graphics, C library)
+Cairo                 (2D Vektorgrafik, C-Bibliothek)
       |
-     topng → PNG bytes → Tk photo image → ttk::label
+     topng → PNG-Bytes → Tk photo image → ttk::label
 ```
 
 ---
 
-## tkmcairo::surface — implementation
+## tkmcairo::surface — Implementierung
 
-### Widget command trick: rename + interp alias
+### Widget-Command-Trick: rename + interp alias
 
-Tk destroys a window when its Tcl command is deleted.
-`interp alias {} .w {} handler` first deletes the existing command,
-which destroys the window.
+Tk vernichtet ein Fenster wenn sein Tcl-Command gelöscht wird.
+`interp alias {} .w {} handler` löscht zuerst den existierenden
+Command, was das Fenster zerstört.
 
-**Correct order:**
+**Korrekte Reihenfolge:**
 ```tcl
 ttk::frame $w
-# 1. First rename — the command moves, the window stays
+# 1. Erst rename — Command verschoben, Fenster bleibt erhalten
 rename $w ::tkmcairo::surface::_frame_[string map {. _ : _} $w]
-# 2. Then alias — $w no longer exists as a command, so nothing is deleted
+# 2. Dann alias — $w existiert nicht mehr als Command → nichts wird gelöscht
 interp alias {} $w {} ::tkmcairo::surface::_cmd $w
 ```
 
-The internal frame command is stored in `_frameCmd($w)` so the
-`default` branch of `_cmd` can forward to it.
+Der interne Frame-Command wird in `_frameCmd($w)` gespeichert für
+Weiterleitungen im `default`-Fall von `_cmd`.
 
-### Namespace convention
+### Namespace-Konvention
 
-State namespace: `::tkmcairo::surface::S_$w`
+State-Namespace: `::tkmcairo::surface::S_$w`
 
-The `S_` prefix is required because the widget path contains a dot:
-`.s` → `S_.s`. Namespace names that start with a dot would be problematic.
+Das `S_`-Prefix ist nötig weil der Widget-Pfad einen Punkt enthält:
+`.s` → `S_.s`. Namespace-Namen mit führendem Punkt wären problematisch.
 
 ```tcl
 namespace eval ::tkmcairo::surface::S_$w {
-    variable ctx      ""   ;# tclmcairo context object
+    variable ctx      ""   ;# tclmcairo-Context-Objekt
     variable photo    ""   ;# Tk photo image name
-    variable width    0    ;# current width
-    variable height   0    ;# current height
-    variable pending  0    ;# debounce flag
-    variable opts          ;# option array
+    variable width    0    ;# aktuelle Breite
+    variable height   0    ;# aktuelle Höhe
+    variable pending  0    ;# Debounce-Flag
+    variable opts          ;# Optionen-Array
 }
 ```
 
-### Drawcommand convention
+### Drawcommand-Convention
 
-Surface sets three global variables and then evaluates the script:
+Surface setzt drei globale Variablen und evaluiert dann das Skript:
 
 ```tcl
-uplevel #0 [list set ctx $ctx]   ;# tclmcairo context object
-uplevel #0 [list set w   $pw]    ;# width in pixels
-uplevel #0 [list set h   $ph]    ;# height in pixels
+uplevel #0 [list set ctx $ctx]   ;# tclmcairo Context-Objekt
+uplevel #0 [list set w   $pw]    ;# Breite in Pixeln
+uplevel #0 [list set h   $ph]    ;# Höhe in Pixeln
 catch {uplevel #0 $cmd}
 ```
 
-**Script style (for end users):**
+**Skript-Stil (für Endnutzer):**
 ```tcl
 -drawcommand {myDraw $ctx $w $h}
 
@@ -79,22 +79,22 @@ proc myDraw {ctx w h} {
 }
 ```
 
-**Proc-reference style (for internal use, e.g. plot):**
+**Proc-Verweis-Stil (für interne Nutzung, z.B. plot):**
 ```tcl
 -drawcommand [list ::mypkg::_drawentry .w]
 
 proc ::mypkg::_drawentry {self} {
-    global ctx w h   ;# set as globals by surface
+    global ctx w h   ;# von surface als globale Vars gesetzt
     ::mypkg::_draw $self $ctx $w $h
 }
 ```
 
-Both styles work because `uplevel #0` evaluates in the global context,
-where `$ctx`, `$w`, `$h` are accessible.
+Beide Stile funktionieren weil `uplevel #0` im globalen Kontext
+evaluiert und dort `$ctx`, `$w`, `$h` zugänglich sind.
 
-### Resize debounce
+### Resize-Debounce
 
-`<Configure>` fires for every pixel during a resize. 30 ms debounce:
+`<Configure>` feuert bei jedem Pixel beim Resize. Debounce 30ms:
 
 ```tcl
 proc ::tkmcairo::surface::_onConfigure {w nw nh} {
@@ -105,23 +105,23 @@ proc ::tkmcairo::surface::_onConfigure {w nw nh} {
 }
 ```
 
-### Context lifecycle
+### Context-Lifecycle
 
-For each redraw:
-1. Destroy the previous context (if any)
-2. Create a new context: `tclmcairo::new $pw $ph`
-3. Fill the background
-4. Evaluate the drawcommand
-5. `$ctx topng` → PNG bytes
+Pro Redraw:
+1. Alter Context zerstören (falls vorhanden)
+2. Neuen Context erstellen: `tclmcairo::new $pw $ph`
+3. Background füllen
+4. Drawcommand evaluieren
+5. `$ctx topng` → PNG-Bytes
 6. `$photo put $pngdata -format png`
 
-The context is kept in `${ns}::ctx` for `$w ctx` queries.
-**Important:** always call `$ctx destroy`. `MAX_CTX = 256`.
+Context wird in `${ns}::ctx` gehalten für `$w ctx`-Abfragen.
+**Wichtig:** Immer `$ctx destroy` aufrufen, MAX_CTX=256.
 
-### PNG export
+### PNG-Export
 
-`$ctx save $file` is not implemented for raster contexts.
-Correct approach:
+`$ctx save $file` ist nicht für Raster-Contexts implementiert.
+Korrekte Vorgehensweise:
 
 ```tcl
 set fh [open $file wb]
@@ -130,9 +130,9 @@ puts -nonewline $fh [$ctx topng]
 close $fh
 ```
 
-### Vector export (PDF/SVG/PS/EPS)
+### Vektor-Export (PDF/SVG/PS/EPS)
 
-A new vector context, then re-run the drawcommand:
+Neuer Vektor-Context, drawcommand erneut ausführen:
 
 ```tcl
 set ctx [tclmcairo::new $pw $ph -mode pdf -file $file]
@@ -143,45 +143,46 @@ catch {$ctx destroy}
 
 ---
 
-## tkmcairo::plot — implementation
+## tkmcairo::plot — Implementierung
 
-### Layering: plot on top of surface
+### Schichtung: plot auf surface
 
-`plot` internally creates a `tkmcairo::surface` under the same widget
-path `$w`. The surface installs its command at `$w` via
-`rename` + `interp alias`. `plot` then overwrites that alias:
+plot erstellt intern eine `tkmcairo::surface` unter demselben
+Widget-Pfad `$w`. Die surface installiert per `rename` + `interp alias`
+ihren Command unter `$w`. plot überschreibt diesen Alias dann:
 
 ```tcl
-tkmcairo::surface $w ...      ;# installs alias .p → surface::_cmd
-interp alias {} $w {} ::tkmcairo::plot::_cmd $w  ;# overwrites
+tkmcairo::surface $w ...      ;# installiert Alias .p → surface::_cmd
+interp alias {} $w {} ::tkmcairo::plot::_cmd $w  ;# überschreibt
 ```
 
-Because surface has already run `rename`, the second `interp alias`
-call only deletes the surface alias — the Tk window survives.
+Da surface bereits `rename` gemacht hat, löscht der zweite
+`interp alias`-Aufruf nur den surface-Alias — das Tk-Fenster
+bleibt erhalten.
 
-### _cmd must never call $w
+### _cmd darf nie $w aufrufen
 
-`$w` is the alias to `_cmd` itself, so `$w subcmd` would recurse
-infinitely. All forwarding goes directly to internal procs:
+`$w` ist der Alias auf `_cmd` selbst → `$w subcmd` = infinite recursion.
+Alle Weiterleitungen gehen direkt auf interne Procs:
 
 ```tcl
-# WRONG — recursive:
+# FALSCH — rekursiv:
 redraw { $w redraw }
 
-# RIGHT — direct proc calls:
+# RICHTIG — direkte Proc-Aufrufe:
 redraw { ::tkmcairo::surface::_redraw $w }
 export { ::tkmcairo::surface::_export $w {*}$args }
 default { ::tkmcairo::surface::_cmd $w $subcmd {*}$args }
 ```
 
-### Drawcommand bridge
+### Drawcommand-Bridge
 
-`plot` registers a proc reference with surface:
+plot registriert bei surface einen Proc-Verweis:
 ```tcl
 -drawcommand [list ::tkmcairo::plot::_drawentry $w]
 ```
 
-`_drawentry` reads the globals set by surface:
+`_drawentry` greift auf die von surface gesetzten globalen Variablen zu:
 ```tcl
 proc ::tkmcairo::plot::_drawentry {plotw} {
     global ctx w h
@@ -189,9 +190,9 @@ proc ::tkmcairo::plot::_drawentry {plotw} {
 }
 ```
 
-### Coordinate transform
+### Koordinaten-Transformation
 
-`apply` lambdas with explicit parameters (no closure issues):
+`apply`-Lambdas mit expliziten Parametern (kein Closure-Problem):
 
 ```tcl
 set toX [list apply [list {v px0 xmin xscale} {
@@ -200,51 +201,50 @@ set toX [list apply [list {v px0 xmin xscale} {
 set px [{*}$toX $xval $px0 $xmin $xscale]
 ```
 
-**Why not plain procs?**
-Plain procs have no closure over local variables.
+**Warum nicht globale procs?**
+Globale procs haben keine Closure über lokale Variablen.
 ```tcl
-# WRONG — $px0 is undefined at call time:
+# FALSCH — $px0 ist zur Laufzeit nicht definiert:
 proc _X {v} [list expr "\$px0 + (\$v - $xmin) * $xscale"]
 ```
 
-### Clipping — known limitation
+### Clipping — bekannte Einschränkung
 
-`$ctx rect x y w h -fill ...` fills and then clears the path.
-A subsequent `$ctx clip` clips on an empty path, so every following
-draw call is invisible.
+`$ctx rect x y w h -fill ...` füllt und löscht danach den Pfad.
+`$ctx clip` danach clippt auf leeren Pfad → alle folgenden
+Zeichenoperationen unsichtbar.
 
-→ clipping is disabled in series procs. Data points outside the plot
-area are drawn. Fix planned for 0.2.
-
----
-
-## Known limitations (0.1)
-
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| No clipping in plot series | Cairo rect clears the path | 0.2 |
-| `text_extents` demo incomplete | ctx object not OO-transparent | 0.2 |
-| No zoom/pan | no viewport widget | 0.2 |
+→ Clipping in Series-Procs deaktiviert. Datenpunkte außerhalb
+  des Plot-Bereichs werden gezeichnet. Fix geplant für 0.2.
 
 ---
 
-## File layout
+## Bekannte Einschränkungen (0.1)
+
+| Problem | Ursache | Fix |
+|---------|---------|-----|
+| Kein Clipping in Plot-Series | Cairo rect löscht Pfad | 0.2 |
+| text_extents-Demo unvollständig | ctx-Objekt nicht OO-transparent | 0.2 |
+| Zoom/Pan fehlt | kein viewport-Widget | 0.2 |
+
+---
+
+## Datei-Struktur
 
 ```
 tkmcairo/
 ├── README.md
-├── CHANGELOG.md
 ├── docs/
-│   ├── tkmcairo-technical.md    ← this document
-│   ├── tkmcairo-concept.md      ← architectural vision
-│   └── tkmcairo-roadmap.md      ← version planning
+│   ├── tkmcairo-technical.md    ← dieses Dokument
+│   ├── tkmcairo-concept.md      ← Architektur-Vision
+│   └── tkmcairo-roadmap.md      ← Versionsplanung
 ├── nogit/
 │   ├── TODO.md
 │   ├── ROADMAP.md
 │   └── uebergabe-0.1.md
 ├── tcl/tkmcairo/
-│   ├── surface-0.1.tm           ← core widget
-│   └── plot-0.1.tm              ← chart widget
+│   ├── surface-0.1.tm           ← Core Widget
+│   └── plot-0.1.tm              ← Chart Widget
 └── demos/
     ├── demo-surface.tcl
     ├── demo-plot.tcl

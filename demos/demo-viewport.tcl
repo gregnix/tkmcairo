@@ -2,7 +2,7 @@
 # demo-viewport.tcl — tkmcairo::viewport Demo
 #
 # Zeigt: Zoom (Mausrad), Pan (Mitteltaste), Zoom-Buttons, Export
-# The drawcommand also receives $zoom as a variable
+# Drawcommand erhält zusätzlich $zoom als Variable
 
 package require Tk
 
@@ -134,7 +134,7 @@ proc drawWorld {ctx w h} {
     $ctx text 65 5 "X" -font "Sans Bold 10" -color {0.8 0.2 0.2}
     $ctx text 5 68 "Y" -font "Sans Bold 10" -color {0.2 0.6 0.2}
 
-    # World size
+    # Welt-Größe
     $ctx text 1190 890 "1200 × 900" \
         -font "Sans 9" -color {0.5 0.5 0.6} -anchor se
 }

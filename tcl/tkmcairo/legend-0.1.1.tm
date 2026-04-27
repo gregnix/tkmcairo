@@ -1,31 +1,31 @@
 # tkmcairo::legend 0.1
 #
-# Draw a legend with tclmcairo.
+# Legende zeichnen mit tclmcairo.
 #
 # API:
 #   tkmcairo::legend::draw $ctx $series ?options?
 #
-#   series = list of dicts:  {name color ?type line|area|bar|scatter?}
-#   Example:
+#   series = Liste von Dicts:  {name color ?type line|area|bar|scatter?}
+#   Beispiel:
 #     set series [list \
 #         {name "Berlin" color {0.2 0.5 0.9} type line} \
-#         {name "Vienna" color {0.9 0.4 0.2} type area}]
+#         {name "Wien"   color {0.9 0.4 0.2} type area}]
 #
-#   Options:
-#     -x -y               position (default: automatic top-right)
+#   Optionen:
+#     -x -y               Position (default: automatisch oben-rechts)
 #     -position ne|nw|se|sw|right  (default: ne)
 #     -font    fontspec   (default "Sans 10")
-#     -bg      {r g b a}  background (default {1 1 1 0.9})
-#     -border  {r g b}    border (default {0.7 0.7 0.7})
-#     -padding n          inner padding (default 6)
-#     -itemh   n          row height (default 20)
-#     -swatchw n          colour swatch width (default 18)
-#     -pw -ph             plot-area width / height (for auto position)
+#     -bg      {r g b a}  Hintergrund (default {1 1 1 0.9})
+#     -border  {r g b}    Rahmen (default {0.7 0.7 0.7})
+#     -padding n          Innenabstand (default 6)
+#     -itemh   n          Zeilenhöhe (default 20)
+#     -swatchw n          Farb-Swatch Breite (default 18)
+#     -pw -ph             Plot-Area Breite/Höhe für auto-position
 #
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::legend 0.1
+package provide tkmcairo::legend 0.1.1
 
 namespace eval ::tkmcairo::legend {}
 
@@ -52,7 +52,7 @@ proc ::tkmcairo::legend::draw {ctx series args} {
     set sww    $opts(-swatchw)
     set n      [llength $series]
 
-    # Width: swatch + gap + longest name
+    # Breite: Swatch + Gap + längster Name
     set maxlen 0
     foreach s $series {
         if {[dict exists $s name]} {
@@ -63,7 +63,7 @@ proc ::tkmcairo::legend::draw {ctx series args} {
     set lw [expr {$sww + 6 + $maxlen * 7 + $pad}]
     set lh [expr {$n * $itemh + 2 * $pad}]
 
-    # Compute position
+    # Position berechnen
     if {$opts(-x) < 0 || $opts(-y) < 0} {
         switch $opts(-position) {
             ne      { set lx [expr {$opts(-pw) - $lw - 10}]; set ly 10 }
@@ -81,14 +81,14 @@ proc ::tkmcairo::legend::draw {ctx series args} {
         set ly $opts(-y)
     }
 
-    # Background box
+    # Hintergrund-Box
     lassign $opts(-bg) bgr bgg bgb bga
     $ctx rect $lx $ly $lw $lh \
         -fill [list $bgr $bgg $bgb $bga] \
         -stroke [list {*}$opts(-border) 1] \
         -width 0.8 -radius 4
 
-    # Entries
+    # Einträge
     set y [expr {$ly + $pad + $itemh/2.0}]
     foreach s $series {
         set name  [expr {[dict exists $s name]  ? [dict get $s name]  : ""}]

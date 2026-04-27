@@ -1,7 +1,7 @@
 #!/usr/bin/env wish
 # demo-scene.tcl — tkmcairo::scene Demo
 #
-# Demonstrates: adding items, moving, deleting, bindings, Z order
+# Zeigt: Items hinzufügen, bewegen, löschen, Bindings, Z-Order
 
 package require Tk
 
@@ -80,7 +80,7 @@ set colors [list \
     {0.3 0.9 0.5} {0.8 0.3 0.9} {0.9 0.6 0.2}]
 
 set ::selectedItem ""
-set ::sceneInfo "Click on an item to select"
+set ::sceneInfo "Klick auf Item zum Auswählen"
 
 for {set i 0} {$i < 6} {incr i} {
     set col [lindex $colors $i]
@@ -103,7 +103,7 @@ for {set i 0} {$i < 6} {incr i} {
 proc sceneSelect {iid} {
     global scene sceneInfo selectedItem
     set selectedItem $iid
-    set sceneInfo "Selected: item $iid"
+    set sceneInfo "Ausgewählt: Item $iid"
     $scene raise $iid
     $scene render
 }
@@ -111,7 +111,7 @@ proc sceneSelect {iid} {
 proc sceneRaiseSelected {} {
     global scene sceneInfo selectedItem
     if {$selectedItem eq ""} {
-        set sceneInfo "No item selected"
+        set sceneInfo "Kein Item ausgewählt"
         return
     }
     $scene raise $selectedItem

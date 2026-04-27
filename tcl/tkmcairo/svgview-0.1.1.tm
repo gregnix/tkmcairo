@@ -1,29 +1,30 @@
 # tkmcairo::svgview 0.1
 #
-# SVG viewer widget — displays SVG files via lunasvg or svg2cairo.
-# Supports zoom, pan, export.
+# SVG-Viewer Widget — zeigt SVG-Dateien via lunasvg oder svg2cairo.
+# Unterstützt Zoom, Pan, Export.
 #
 # API:
 #   tkmcairo::svgview pathName ?options?
 #
 #   Options:
-#     -width  n          width in pixels (default 600)
-#     -height n          height in pixels (default 400)
-#     -file   filename   SVG file (optional, can also be loaded later)
-#     -background {r g b}  background colour (default {1 1 1})
+#     -width  n          Breite in Pixeln (default 600)
+#     -height n          Höhe in Pixeln (default 400)
+#     -file   filename   SVG-Datei (optional, auch später via load)
+#     -background {r g b}  Hintergrundfarbe (default {1 1 1})
 #     -renderer auto|luna|svg2cairo
-#                        auto: lunasvg if available, otherwise svg2cairo
+#                        auto: lunasvg wenn verfügbar, sonst svg2cairo
 #
-#   Widget commands:
-#     $sv load filename   load an SVG file
-#     $sv reload          reload the current file
-#     $sv zoom factor     multiply zoom factor
-#     $sv zoomfit         fit to window size
-#     $sv zoom1           1:1 original size
-#     $sv pan dx dy       shift
-#     $sv file            current filename
-#     $sv svgsize         original SVG size {w h}
-#     $sv export filename PNG/PDF/SVG/PS/EPS
+#   Widget-Commands:
+#     $sv load filename   SVG-Datei laden
+#     $sv reload          Aktuelle Datei neu laden
+#     $sv zoom factor     Zoom-Faktor multiplizieren
+#     $sv zoomfit         An Fenstergröße anpassen
+#     $sv zoom1           1:1 Originalgröße
+#     $sv pan dx dy       Verschieben
+#     $sv file            Aktueller Dateiname
+#     $sv svgsize         SVG-Originalgröße {w h}
+#     $sv export filename                     save to file (format from extension)
+#     $sv export -chan $ch -format fmt        stream to channel (PNG/PDF/SVG/PS/EPS)
 #     $sv redraw
 #     $sv configure ...
 #     $sv cget option
@@ -34,7 +35,7 @@
 # Part of tkmcairo — https://github.com/gregnix/tkmcairo
 # License: BSD 2-Clause
 
-package provide tkmcairo::svgview 0.1
+package provide tkmcairo::svgview 0.1.1
 
 package require Tk
 package require tclmcairo
@@ -186,7 +187,7 @@ proc ::tkmcairo::svgview::_load {w file} {
     }
     set ${ns}::file $file
 
-    # Determine SVG size
+    # SVG-Größe ermitteln
     set r [set ${ns}::renderer]
     set sw 0; set sh 0
     if {$r eq "luna"} {
