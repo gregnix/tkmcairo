@@ -1,0 +1,19 @@
+# Editor / OS clutter
+*.bak
+*~
+.#*
+\#*#
+.DS_Store
+
+# Demo / test artefacts
+demos/*.png
+demos/*.pdf
+demos/*.svg
+demos/*.eps
+demos/*.ps
+demos/*.jpg
+/tmp/tkmcairo_test.*
+
+# Internal handover documents (German notes, never published)
+nogit/
+**/nogit
